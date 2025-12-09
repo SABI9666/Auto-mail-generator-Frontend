@@ -30,22 +30,45 @@ api.interceptors.response.use(
   }
 );
 
-// Auth API
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTH API
+// ═══════════════════════════════════════════════════════════════════════════
 export const authAPI = {
+  // Register new user
   register: (data) => api.post('/auth/register', data),
+  
+  // Login
   login: (data) => api.post('/auth/login', data),
+  
+  // Get user profile
   getProfile: () => api.get('/auth/profile'),
+  
+  // Update user profile
   updateProfile: (data) => api.put('/auth/profile', data),
+  
+  // Connect Gmail - Get OAuth URL
+  connectGmail: () => api.get('/gmail/auth-url'),
+  
+  // Disconnect Gmail
+  disconnectGmail: () => api.post('/gmail/disconnect'),
+  
+  // Check Gmail connection status
+  getGmailStatus: () => api.get('/gmail/status'),
 };
 
-// Gmail API
+// ═══════════════════════════════════════════════════════════════════════════
+// GMAIL API (Alternative naming - same endpoints)
+// ═══════════════════════════════════════════════════════════════════════════
 export const gmailAPI = {
   getAuthUrl: () => api.get('/gmail/auth-url'),
   disconnect: () => api.post('/gmail/disconnect'),
   getStatus: () => api.get('/gmail/status'),
+  callback: (code) => api.get(`/gmail/callback?code=${code}`),
 };
 
-// Email API
+// ═══════════════════════════════════════════════════════════════════════════
+// EMAIL API
+// ═══════════════════════════════════════════════════════════════════════════
 export const emailAPI = {
   // Scan inbox for new emails
   scanInbox: (period = 'day') => api.post(`/email/scan?period=${period}`),
@@ -74,12 +97,20 @@ export const emailAPI = {
   editDraft: (draftId, editedBody) => api.post(`/email/drafts/${draftId}/edit`, { editedBody }),
 };
 
-// Stats API (if you have one)
+// ═══════════════════════════════════════════════════════════════════════════
+// STATS API
+// ═══════════════════════════════════════════════════════════════════════════
 export const statsAPI = {
+  // Get dashboard statistics
+  getDashboard: () => api.get('/stats/dashboard'),
+  
+  // Alternative method name
   getDashboardStats: () => api.get('/stats/dashboard'),
 };
 
 export default api;
+
+
 
 
 
