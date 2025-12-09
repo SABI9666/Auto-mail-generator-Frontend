@@ -1,17 +1,12 @@
 import axios from 'axios';
 
-// CRITICAL: Check if API URL is set
-const API_URL = process.env.REACT_APP_API_URL || 'https://auto-mail-generator-backend.onrender.com';
+const API_URL = process.env.REACT_APP_API_URL || 'https://auto-mail-generator-backend.onrender.com/api';
 
-console.log('🔗 API URL:', API_URL);
-
-// Create axios instance with default config
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
-  },
-  timeout: 30000 // 30 second timeout
+  }
 });
 
 // Add auth token to requests
@@ -20,76 +15,84 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  console.log(`📡 ${config.method.toUpperCase()} ${config.url}`, config.data || '');
   return config;
-}, (error) => {
-  console.error('❌ Request Error:', error);
-  return Promise.reject(error);
 });
 
-// Add response interceptor for better error handling
+// Handle response errors
 api.interceptors.response.use(
-  (response) => {
-    console.log(`✅ Response from ${response.config.url}:`, response.status);
-    return response;
-  },
+  (response) => response,
   (error) => {
-    if (error.response) {
-      // Server responded with error
-      console.error(`❌ API Error [${error.response.status}]:`, error.response.data);
-      console.error('URL:', error.config.url);
-    } else if (error.request) {
-      // Request made but no response
-      console.error('❌ No response from server:', error.message);
-      console.error('API URL:', API_URL);
-      console.error('Check if backend is running!');
-    } else {
-      // Something else happened
-      console.error('❌ Request setup error:', error.message);
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
-// Authentication API
+// Auth API
 export const authAPI = {
-  register: (data) => api.post('/api/auth/register', data),
-  login: (data) => api.post('/api/auth/login', data),
-  getProfile: () => api.get('/api/auth/profile'),
-  updateProfile: (data) => api.put('/api/auth/profile', data),
-  
-  // Gmail OAuth
-  connectGmail: () => api.get('/api/auth/gmail/url'),
-  getGmailStatus: () => api.get('/api/auth/gmail/status'),
-  disconnectGmail: () => api.delete('/api/auth/gmail/disconnect')
+  register: (data) => api.post('/auth/register', data),
+  login: (data) => api.post('/auth/login', data),
+  getProfile: () => api.get('/auth/profile'),
+  updateProfile: (data) => api.put('/auth/profile', data),
 };
 
-// Email Management API
+// Gmail API
+export const gmailAPI = {
+  getAuthUrl: () => api.get('/gmail/auth-url'),
+  disconnect: () => api.post('/gmail/disconnect'),
+  getStatus: () => api.get('/gmail/status'),
+};
+
+// Email API
 export const emailAPI = {
-  // Scan inbox with period parameter
-  scanInbox: (period = 'day') => api.post(`/api/email/scan?period=${period}`),
+  // Scan inbox for new emails
+  scanInbox: (period = 'day') => api.post(`/email/scan?period=${period}`),
   
-  // Get drafts
-  getPendingDrafts: (period = 'week') => api.get(`/api/email/drafts/pending?period=${period}`),
+  // Get pending drafts
+  getPendingDrafts: (period = 'week') => api.get(`/email/drafts/pending?period=${period}`),
+  
+  // Get all drafts with optional filters
   getAllDrafts: (status, period) => {
-    let url = '/api/email/drafts?';
+    let url = '/email/drafts?';
     if (status) url += `status=${status}&`;
     if (period) url += `period=${period}`;
     return api.get(url);
   },
-  getDraft: (draftId) => api.get(`/api/email/drafts/${draftId}`),
   
-  // Draft actions
-  approveDraft: (draftId) => api.post(`/api/email/drafts/${draftId}/approve`),
-  rejectDraft: (draftId) => api.post(`/api/email/drafts/${draftId}/reject`),
-  editDraft: (draftId, editedBody) => api.post(`/api/email/drafts/${draftId}/edit`, { editedBody })
+  // Get single draft by ID (for WhatsApp direct link)
+  getDraft: (draftId) => api.get(`/email/drafts/${draftId}`),
+  
+  // Approve draft and send email
+  approveDraft: (draftId) => api.post(`/email/drafts/${draftId}/approve`),
+  
+  // Reject draft
+  rejectDraft: (draftId) => api.post(`/email/drafts/${draftId}/reject`),
+  
+  // Edit and send draft
+  editDraft: (draftId, editedBody) => api.post(`/email/drafts/${draftId}/edit`, { editedBody }),
 };
 
-// Statistics API
+// Stats API (if you have one)
 export const statsAPI = {
-  getDashboard: () => api.get('/api/stats'),
-  getDraftStats: () => api.get('/api/stats/drafts'),
-  getTimeline: (days = 7) => api.get(`/api/stats/timeline?days=${days}`)
+  getDashboardStats: () => api.get('/stats/dashboard'),
 };
 
 export default api;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
