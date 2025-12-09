@@ -18,6 +18,7 @@ const Dashboard = () => {
   const [scanPeriod, setScanPeriod] = useState('day');
   const [gmailConnected, setGmailConnected] = useState(false);
   const [scanResult, setScanResult] = useState(null);
+  const [error, setError] = useState(null);
   const [stats, setStats] = useState({
     totalDrafts: 0,
     pendingDrafts: 0,
@@ -37,12 +38,21 @@ const Dashboard = () => {
   const loadStats = async () => {
     try {
       setLoading(true);
+      setError(null);
+      console.log('📊 Loading dashboard stats...');
+      
       const response = await statsAPI.getDashboard();
+      console.log('📊 Stats response:', response.data);
+      
       setStats(response.data);
       setGmailConnected(response.data.gmailConnected);
+      console.log('📧 Gmail connected:', response.data.gmailConnected);
     } catch (error) {
-      console.error('Failed to load stats:', error);
-      // If stats fail, at least try to show something
+      console.error('❌ Failed to load stats:', error);
+      console.error('Error response:', error.response?.data);
+      setError('Failed to load dashboard stats: ' + (error.response?.data?.error || error.message));
+      
+      // Set defaults on error
       setStats({
         totalDrafts: 0,
         pendingDrafts: 0,
@@ -66,7 +76,10 @@ const Dashboard = () => {
     try {
       setScanning(true);
       setScanResult(null);
+      console.log('🔍 Starting inbox scan for period:', scanPeriod);
+      
       const response = await emailAPI.scanInbox(scanPeriod);
+      console.log('🔍 Scan result:', response.data);
       
       const result = response.data;
       setScanResult(result);
@@ -80,7 +93,7 @@ const Dashboard = () => {
       // Reload stats after scan
       setTimeout(loadStats, 1000);
     } catch (error) {
-      console.error('Scan error:', error);
+      console.error('❌ Scan error:', error);
       alert('❌ Failed to scan: ' + (error.response?.data?.error || error.message || 'Unknown error'));
     } finally {
       setScanning(false);
@@ -118,6 +131,13 @@ const Dashboard = () => {
       </AppBar>
 
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        {/* Error Alert */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
         {/* Gmail Connection Status */}
         {!gmailConnected && (
           <Alert severity="warning" sx={{ mb: 3 }} action={
@@ -221,7 +241,7 @@ const Dashboard = () => {
                 <Box display="flex" justifyContent="space-around" mt={2}>
                   <Box textAlign="center">
                     <Typography variant="h4" color="primary">
-                      {stats.weeklyStats.draftsCreated}
+                      {stats.weeklyStats?.draftsCreated || 0}
                     </Typography>
                     <Typography color="textSecondary">
                       Drafts Created
@@ -229,7 +249,7 @@ const Dashboard = () => {
                   </Box>
                   <Box textAlign="center">
                     <Typography variant="h4" color="success.main">
-                      {stats.weeklyStats.emailsSent}
+                      {stats.weeklyStats?.emailsSent || 0}
                     </Typography>
                     <Typography color="textSecondary">
                       Emails Sent
@@ -316,9 +336,16 @@ const Dashboard = () => {
                     size="large"
                     startIcon={<Email />}
                     onClick={() => navigate('/drafts')}
-                    disabled={stats.pendingDrafts === 0}
                   >
                     View Drafts ({stats.pendingDrafts})
+                  </Button>
+
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={loadStats}
+                  >
+                    Refresh Stats
                   </Button>
                 </Box>
 
@@ -339,3 +366,57 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
