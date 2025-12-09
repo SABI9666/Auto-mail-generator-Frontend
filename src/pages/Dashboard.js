@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import {
   Container, Grid, Card, CardContent, Typography, Button,
   Box, CircularProgress, AppBar, Toolbar, IconButton,
-  Select, MenuItem, FormControl, InputLabel, Alert
+  Select, MenuItem, FormControl, InputLabel, Alert,
+  Switch, FormControlLabel, Chip, Tooltip
 } from '@mui/material';
 import {
   Email, CheckCircle, Cancel, Refresh,
-  Settings as SettingsIcon, Logout, CloudOff, CloudDone
+  Settings as SettingsIcon, Logout, CloudOff, CloudDone,
+  PlayArrow, Stop, Schedule, TouchApp
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { emailAPI, statsAPI } from '../services/api';
@@ -19,6 +21,13 @@ const Dashboard = () => {
   const [gmailConnected, setGmailConnected] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [error, setError] = useState(null);
+  
+  // Auto-scan state
+  const [autoScanEnabled, setAutoScanEnabled] = useState(false);
+  const [autoScanInterval, setAutoScanInterval] = useState(5);
+  const [lastAutoScan, setLastAutoScan] = useState(null);
+  const [togglingAutoScan, setTogglingAutoScan] = useState(false);
+
   const [stats, setStats] = useState({
     totalDrafts: 0,
     pendingDrafts: 0,
@@ -33,26 +42,20 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadStats();
+    loadAutoScanSettings();
   }, []);
 
   const loadStats = async () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('📊 Loading dashboard stats...');
       
       const response = await statsAPI.getDashboard();
-      console.log('📊 Stats response:', response.data);
-      
       setStats(response.data);
       setGmailConnected(response.data.gmailConnected);
-      console.log('📧 Gmail connected:', response.data.gmailConnected);
     } catch (error) {
       console.error('❌ Failed to load stats:', error);
-      console.error('Error response:', error.response?.data);
       setError('Failed to load dashboard stats: ' + (error.response?.data?.error || error.message));
-      
-      // Set defaults on error
       setStats({
         totalDrafts: 0,
         pendingDrafts: 0,
@@ -66,7 +69,47 @@ const Dashboard = () => {
     }
   };
 
-  const handleScanInbox = async () => {
+  const loadAutoScanSettings = async () => {
+    try {
+      const response = await emailAPI.getAutoScanSettings();
+      setAutoScanEnabled(response.data.autoScanEnabled);
+      setAutoScanInterval(response.data.autoScanInterval || 5);
+      setLastAutoScan(response.data.lastAutoScan);
+    } catch (error) {
+      console.error('Failed to load auto-scan settings:', error);
+    }
+  };
+
+  const handleToggleAutoScan = async () => {
+    try {
+      setTogglingAutoScan(true);
+      const response = await emailAPI.toggleAutoScan();
+      setAutoScanEnabled(response.data.autoScanEnabled);
+      
+      if (response.data.autoScanEnabled) {
+        alert('✅ Auto-scan enabled!\n\nNew emails will be automatically scanned and sent to WhatsApp.');
+      } else {
+        alert('⏹️ Auto-scan disabled.\n\nUse Manual Scan to check for new emails.');
+      }
+    } catch (error) {
+      console.error('Toggle auto-scan error:', error);
+      alert('❌ ' + (error.response?.data?.error || 'Failed to toggle auto-scan'));
+    } finally {
+      setTogglingAutoScan(false);
+    }
+  };
+
+  const handleUpdateInterval = async (newInterval) => {
+    try {
+      setAutoScanInterval(newInterval);
+      await emailAPI.updateAutoScanInterval(newInterval);
+    } catch (error) {
+      console.error('Update interval error:', error);
+      alert('❌ Failed to update interval');
+    }
+  };
+
+  const handleManualScan = async () => {
     if (!gmailConnected) {
       alert('⚠️ Please connect Gmail first in Settings');
       navigate('/settings');
@@ -76,11 +119,8 @@ const Dashboard = () => {
     try {
       setScanning(true);
       setScanResult(null);
-      console.log('🔍 Starting inbox scan for period:', scanPeriod);
       
       const response = await emailAPI.scanInbox(scanPeriod);
-      console.log('🔍 Scan result:', response.data);
-      
       const result = response.data;
       setScanResult(result);
       
@@ -90,7 +130,6 @@ const Dashboard = () => {
         alert(`✅ Scan complete!\nNo new emails found in the last ${scanPeriod}.`);
       }
       
-      // Reload stats after scan
       setTimeout(loadStats, 1000);
     } catch (error) {
       console.error('❌ Scan error:', error);
@@ -103,6 +142,12 @@ const Dashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/login');
+  };
+
+  const formatLastScan = (dateStr) => {
+    if (!dateStr) return 'Never';
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
   };
 
   if (loading) {
@@ -298,12 +343,101 @@ const Dashboard = () => {
             </Card>
           </Grid>
 
-          {/* Quick Actions */}
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {/* SCAN MODE SELECTOR - Manual vs Auto */}
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          <Grid item xs={12}>
+            <Card sx={{ bgcolor: autoScanEnabled ? '#e8f5e9' : '#fff3e0' }}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    {autoScanEnabled ? (
+                      <PlayArrow fontSize="large" color="success" />
+                    ) : (
+                      <TouchApp fontSize="large" color="warning" />
+                    )}
+                    <Box>
+                      <Typography variant="h6">
+                        Scan Mode: {autoScanEnabled ? 'Auto Scan' : 'Manual Scan'}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        {autoScanEnabled 
+                          ? `Automatically scanning every ${autoScanInterval} minute(s)`
+                          : 'Click "Scan Inbox" to check for new emails'
+                        }
+                      </Typography>
+                      {autoScanEnabled && lastAutoScan && (
+                        <Typography variant="caption" color="textSecondary">
+                          Last auto-scan: {formatLastScan(lastAutoScan)}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+
+                  <Box display="flex" alignItems="center" gap={2}>
+                    {/* Auto-scan interval selector */}
+                    {autoScanEnabled && (
+                      <FormControl size="small" sx={{ minWidth: 120 }}>
+                        <InputLabel>Interval</InputLabel>
+                        <Select
+                          value={autoScanInterval}
+                          onChange={(e) => handleUpdateInterval(e.target.value)}
+                          label="Interval"
+                        >
+                          <MenuItem value={1}>1 minute</MenuItem>
+                          <MenuItem value={5}>5 minutes</MenuItem>
+                          <MenuItem value={10}>10 minutes</MenuItem>
+                          <MenuItem value={15}>15 minutes</MenuItem>
+                          <MenuItem value={30}>30 minutes</MenuItem>
+                          <MenuItem value={60}>1 hour</MenuItem>
+                        </Select>
+                      </FormControl>
+                    )}
+
+                    {/* Toggle Button */}
+                    <Tooltip title={autoScanEnabled ? 'Switch to Manual Scan' : 'Enable Auto Scan'}>
+                      <Button
+                        variant="contained"
+                        color={autoScanEnabled ? 'error' : 'success'}
+                        startIcon={togglingAutoScan ? <CircularProgress size={20} color="inherit" /> : (autoScanEnabled ? <Stop /> : <PlayArrow />)}
+                        onClick={handleToggleAutoScan}
+                        disabled={togglingAutoScan || !gmailConnected}
+                      >
+                        {autoScanEnabled ? 'Stop Auto Scan' : 'Start Auto Scan'}
+                      </Button>
+                    </Tooltip>
+                  </Box>
+                </Box>
+
+                {/* Status chips */}
+                <Box display="flex" gap={1} mt={2}>
+                  <Chip 
+                    icon={autoScanEnabled ? <PlayArrow /> : <TouchApp />}
+                    label={autoScanEnabled ? 'AUTO MODE' : 'MANUAL MODE'}
+                    color={autoScanEnabled ? 'success' : 'warning'}
+                    size="small"
+                  />
+                  {autoScanEnabled && (
+                    <Chip 
+                      icon={<Schedule />}
+                      label={`Every ${autoScanInterval} min`}
+                      variant="outlined"
+                      size="small"
+                    />
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {/* MANUAL SCAN CONTROLS */}
+          {/* ═══════════════════════════════════════════════════════════════════ */}
           <Grid item xs={12}>
             <Card>
               <CardContent>
                 <Typography variant="h5" gutterBottom>
-                  Quick Actions
+                  {autoScanEnabled ? 'Manual Override' : 'Quick Actions'}
                 </Typography>
                 
                 <Box display="flex" gap={2} alignItems="center" mt={2} flexWrap="wrap">
@@ -325,10 +459,10 @@ const Dashboard = () => {
                     variant="contained"
                     size="large"
                     startIcon={scanning ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
-                    onClick={handleScanInbox}
+                    onClick={handleManualScan}
                     disabled={scanning || !gmailConnected}
                   >
-                    {scanning ? 'Scanning...' : 'Scan Inbox'}
+                    {scanning ? 'Scanning...' : 'Manual Scan'}
                   </Button>
 
                   <Button
@@ -343,16 +477,16 @@ const Dashboard = () => {
                   <Button
                     variant="text"
                     size="small"
-                    onClick={loadStats}
+                    onClick={() => { loadStats(); loadAutoScanSettings(); }}
                   >
-                    Refresh Stats
+                    Refresh
                   </Button>
                 </Box>
 
                 {scanning && (
                   <Box mt={2}>
                     <Alert severity="info">
-                      Scanning inbox... This may take a few minutes. Processing max 10 emails with 21-second delays to avoid rate limits.
+                      Scanning inbox... This may take a few minutes. Processing max 10 emails with 21-second delays.
                     </Alert>
                   </Box>
                 )}
@@ -366,6 +500,12 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+
+
+
+
 
 
 
